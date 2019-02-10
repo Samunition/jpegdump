@@ -79,6 +79,9 @@
                                     <mainClass>${main.class}</mainClass>
                                 </manifest>
                             </archive>
+                            <descriptorRefs>
+                                <descriptorRef>jar</descriptorRef>
+                            </descriptorRefs>
                         </configuration>
                     </execution>
                 </executions>
