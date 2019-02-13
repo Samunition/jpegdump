@@ -48,11 +48,15 @@ fun main(args: Array<String>) {
                 }
                 0xFFC0, 0xFFC1, 0xFFC2, 0xFFC3, 0xFFC5, 0xFFC6, 0xFFC7, 0xFFC9, 0xFFCA, 0xFFCB, 0xFFCD, 0xFFCE, 0xFFCF -> {
                     printAndSkipMaths(current, stream)
-
                 }
-                0xFFC4, 0xFFC8, 0xFFCC, 0xFFDA, 0xFFDB, 0xFFFE -> {
-                    print("${current.toString(16)}\tMaths shit             ${stream.getPosition().toString(16)}")
-                    print("\t\tSkipping to next marker\n")
+                0xFFC4, 0xFFC8, 0xFFCC, 0xFFDB, 0xFFDC, 0xFFDD, 0xFFDE -> {
+                    printAndSkipDefines(current, stream)
+                }
+                0xFFDA -> {
+                    print(current.toString(16))
+                    print("\tStart of Scan          ")
+                    print(stream.getPosition().toString(16))
+                    print("\n")
                     // Skip to next marker
                     var marker: Boolean = false
                     while (!marker) {
@@ -120,7 +124,7 @@ fun printAndSkipMaths(current: Int, stream: Stream) {
             stream.readUint(16)
             // Sample precision
             stream.readUint(8)
-            print("\t\tWidth: ${stream.readUint(16)}, Height: ${stream.readUint(16)}.\n")
+            print("\t\tWidth: ${stream.readUint(16)}, Height: ${stream.readUint(16)}.")
         }
         0xFFC1 -> print("\tExt Sequential Huffman ")
         0xFFC2 -> print("\tProgressive Huffman    ")
@@ -135,7 +139,29 @@ fun printAndSkipMaths(current: Int, stream: Stream) {
         0xFFCE -> print("\tDiff Prog Arithmetic   ")
         0xFFCF -> print("\tDiff Lossless Arith    ")
     }
+    if(current != 0xFFC0) print(stream.getPosition().toString(16))
+    print("\n")
+    // Skip to next marker
+    var marker: Boolean = false
+    while (!marker) {
+        marker = stream.readUint(8) == 0xFF
+    }
+    stream.seekTo(stream.getPosition() - 1)
+}
 
+fun printAndSkipDefines(current: Int, stream: Stream) {
+    print(current.toString(16))
+    when(current) {
+        0xFFC4 -> print("\tDefine Huffman Table   ")
+        0xFFC8 -> print("\tReserved JPEG Ext.     ")
+        0xFFCC -> print("\tDefine Arith Code Conds")
+        0xFFDB -> print("\tDefine Quant Table     ")
+        0xFFDC -> print("\tDefine Number of Lines ")
+        0xFFDD -> print("\tDefine Restart Interval")
+        0xFFDE -> print("\tDefine Hierarch Prog   ")
+    }
+    print(stream.getPosition().toString(16))
+    print("\n")
     // Skip to next marker
     var marker: Boolean = false
     while (!marker) {
