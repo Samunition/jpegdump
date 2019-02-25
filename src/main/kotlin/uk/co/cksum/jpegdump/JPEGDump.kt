@@ -35,7 +35,7 @@ fun main(args: Array<String>) {
         return
     }
 
-    println("Marker\tName                   Position\tLength/Action")
+    println("Marker\tName                   Position\t\tLength/Action")
     println("ffd8\tSOI                    0")
 
     try {
@@ -57,23 +57,30 @@ fun main(args: Array<String>) {
                     print("\tStart of Scan          ")
                     print(stream.getPosition().toString(16))
                     print("\n")
-                    // Skip to next marker
-                    var marker: Boolean = false
-                    while (!marker) {
-                        marker = stream.readUint(8) == 0xFF
-                    }
-                    stream.seekTo(stream.getPosition() - 1)
+                    skipToNextMarker(stream)
+                }
+                0xFFFE -> {
+                    print(current.toString(16))
+                    print("\tComment                ")
+                    print(stream.getPosition().toString(16))
+                    print("\n")
+                    skipToNextMarker(stream)
+                }
+                0xFFD0, 0xFFD1, 0xFFD2, 0xFFD3, 0xFFD4, 0xFFD5, 0xFFD6, 0xFFD7 -> {
+                    // Restart markers allow for multithreaded decoding and a few other useless things, ignore for now
+//                    print(current.toString(16))
+//                    print("\tRestart Marker         ")
+//                    print(stream.getPosition().toString(16))
+//                    print("\n")
+                    skipToNextMarker(stream)
                 }
                 0xFF00 -> {
                     //skip
-                    var marker: Boolean = false
-                    while (!marker) {
-                        marker = stream.readUint(8) == 0xFF
-                    }
-                    stream.seekTo(stream.getPosition() - 1)
+                    skipToNextMarker(stream)
                 }
                 0xFFD9 -> {
                     print("${current.toString(16)} \tEOI                    ${stream.getPosition().toString(16)}")
+                    print("\n")
                     done = true
                 }
                 else -> {
@@ -141,12 +148,7 @@ fun printAndSkipMaths(current: Int, stream: Stream) {
     }
     if(current != 0xFFC0) print(stream.getPosition().toString(16))
     print("\n")
-    // Skip to next marker
-    var marker: Boolean = false
-    while (!marker) {
-        marker = stream.readUint(8) == 0xFF
-    }
-    stream.seekTo(stream.getPosition() - 1)
+    skipToNextMarker(stream)
 }
 
 fun printAndSkipDefines(current: Int, stream: Stream) {
@@ -162,7 +164,10 @@ fun printAndSkipDefines(current: Int, stream: Stream) {
     }
     print(stream.getPosition().toString(16))
     print("\n")
-    // Skip to next marker
+    skipToNextMarker(stream)
+}
+
+fun skipToNextMarker(stream: Stream) {
     var marker: Boolean = false
     while (!marker) {
         marker = stream.readUint(8) == 0xFF
