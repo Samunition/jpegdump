@@ -35,58 +35,56 @@ fun main(args: Array<String>) {
         return
     }
 
-    println("Current: ffd8 \tSOI")
+    println("Marker\tName                   Position\t\tLength/Action")
+    println("ffd8\tSOI                    0")
 
     try {
         var done: Boolean = false
         while (!done) {
             val current = stream.readUint(16)
             when(current) {
-                0xFFE0, 0xFFE1, 0xFFE2, 0xFFE3, 0xFFE4, 0xFFE5, 0xFFE6, 0xFFE7, 0xFFE8, 0xFFE9, 0xFFEA, 0xFFEB, 0xFFEC, 0xFFED, 0xFFEE -> {
-                    print("Current: ${current.toString(16)}")
-                    val length = stream.readUint(16)
-                    println("\tLength: ${length.toString(16)}")
-                    stream.seekTo(stream.getPosition() + length - 2)
+                0xFFE0, 0xFFE1, 0xFFE2, 0xFFE3, 0xFFE4, 0xFFE5, 0xFFE6, 0xFFE7, 0xFFE8, 0xFFE9, 0xFFEA, 0xFFEB, 0xFFEC, 0xFFED, 0xFFEE, 0xFFEF -> {
+                    printAndSkipAPP(current, stream)
                 }
                 0xFFC0, 0xFFC1, 0xFFC2, 0xFFC3, 0xFFC5, 0xFFC6, 0xFFC7, 0xFFC9, 0xFFCA, 0xFFCB, 0xFFCD, 0xFFCE, 0xFFCF -> {
-                    print("Current: ${current.toString(16)}")
-                    // Header len
-                    stream.readUint(16)
-                    // Sample precision
-                    stream.readUint(8)
-                    print("\tWidth: ${stream.readUint(16)}, Height: ${stream.readUint(16)}.\n")
-                    // Skip to next marker
-                    var marker: Boolean = false
-                    while (!marker) {
-                        marker = stream.readUint(8) == 0xFF
-                    }
-                    stream.seekTo(stream.getPosition() - 1)
+                    printAndSkipMaths(current, stream)
                 }
-                0xFFC4, 0xFFC8, 0xFFCC, 0xFFDA, 0xFFDB -> {
-                    print("Current: ${current.toString(16)}")
-                    print("\tSkipping to next marker\n")
-                    // Skip to next marker
-                    var marker: Boolean = false
-                    while (!marker) {
-                        marker = stream.readUint(8) == 0xFF
-                    }
-                    stream.seekTo(stream.getPosition() - 1)
+                0xFFC4, 0xFFC8, 0xFFCC, 0xFFDB, 0xFFDC, 0xFFDD, 0xFFDE -> {
+                    printAndSkipDefines(current, stream)
+                }
+                0xFFDA -> {
+                    print(current.toString(16))
+                    print("\tStart of Scan          ")
+                    print(stream.getPosition().toString(16))
+                    print("\n")
+                    skipToNextMarker(stream)
+                }
+                0xFFFE -> {
+                    print(current.toString(16))
+                    print("\tComment                ")
+                    print(stream.getPosition().toString(16))
+                    print("\n")
+                    skipToNextMarker(stream)
+                }
+                0xFFD0, 0xFFD1, 0xFFD2, 0xFFD3, 0xFFD4, 0xFFD5, 0xFFD6, 0xFFD7 -> {
+                    // Restart markers allow for multithreaded decoding and a few other useless things, ignore for now
+//                    print(current.toString(16))
+//                    print("\tRestart Marker         ")
+//                    print(stream.getPosition().toString(16))
+//                    print("\n")
+                    skipToNextMarker(stream)
                 }
                 0xFF00 -> {
                     //skip
-                    var marker: Boolean = false
-                    while (!marker) {
-                        marker = stream.readUint(8) == 0xFF
-                    }
-                    stream.seekTo(stream.getPosition() - 1)
+                    skipToNextMarker(stream)
                 }
                 0xFFD9 -> {
-                    print("Current: ${current.toString(16)}")
-                    print("\tEnd of image\n")
+                    print("${current.toString(16)} \tEOI                    ${stream.getPosition().toString(16)}")
+                    print("\n")
                     done = true
                 }
                 else -> {
-                    println("Current: ${current.toString(16)}")
+                    println("Current: ${current.toString(16)} \tposition:${stream.getPosition().toString(16)}")
                     println("Didn't find a marker")
                     done = true
                 }
@@ -95,4 +93,84 @@ fun main(args: Array<String>) {
     } catch (e:EOFException) {
         error("Got to end of file before finding an EOI marker")
     }
+}
+
+fun printAndSkipAPP(current: Int, stream: Stream) {
+    print(current.toString(16))
+    when(current) {
+        0xFFE0 -> print("\tJFIF                   ")
+        0xFFE1 -> print("\tEXIF or XMP            ")
+        0xFFE2 -> print("\tICC                    ")
+        0xFFE3 -> print("\tMETA                   ")
+        0xFFE4 -> print("\tSCALADO                ")
+        0xFFE5 -> print("\tSAMSUNG or RMETA       ")
+        0xFFE6 -> print("\tGOPRO EPPIM            ")
+        0xFFE7 -> print("\tPENTAX or QUALCOMM     ")
+        0xFFE8 -> print("\tSPIFF                  ")
+        0xFFE9 -> print("\tMEDIA JUKEBOX          ")
+        0xFFEA -> print("\tPHOTOSHOP COMMENT      ")
+        0xFFEB -> print("\tJPEG-HDR               ")
+        0xFFEC -> print("\tPICTURE INFO or Ducky  ")
+        0xFFED -> print("\tPHOTOSHOP IRB          ")
+        0xFFEE -> print("\tADOBE                  ")
+        0xFFEF -> print("\tGRAPHCONV              ")
+    }
+    print(stream.getPosition().toString(16))
+    val length = stream.readUint(16)
+    print("\t\tLength: ${length.toString(16)}\n")
+    stream.seekTo(stream.getPosition() + length - 2)
+}
+
+fun printAndSkipMaths(current: Int, stream: Stream) {
+    print(current.toString(16))
+    when(current) {
+        0xFFC0 -> {
+            print("\tStart of Frame         ")
+            print(stream.getPosition().toString(16))
+            // Header len
+            stream.readUint(16)
+            // Sample precision
+            stream.readUint(8)
+            print("\t\tWidth: ${stream.readUint(16)}, Height: ${stream.readUint(16)}.")
+        }
+        0xFFC1 -> print("\tExt Sequential Huffman ")
+        0xFFC2 -> print("\tProgressive Huffman    ")
+        0xFFC3 -> print("\tLossless Huffman       ")
+        0xFFC5 -> print("\tDiff Seq Huffman       ")
+        0xFFC6 -> print("\tDiff Prog Huffman      ")
+        0xFFC7 -> print("\tDiff Lossless Huffman  ")
+        0xFFC9 -> print("\tExt. Seq Arithmetic    ")
+        0xFFCA -> print("\tProgressive Arithmetic ")
+        0xFFCB -> print("\tLossless Arithmetic    ")
+        0xFFCD -> print("\tDiff Seq Arithmetic    ")
+        0xFFCE -> print("\tDiff Prog Arithmetic   ")
+        0xFFCF -> print("\tDiff Lossless Arith    ")
+    }
+    if(current != 0xFFC0) print(stream.getPosition().toString(16))
+    print("\n")
+    skipToNextMarker(stream)
+}
+
+fun printAndSkipDefines(current: Int, stream: Stream) {
+    print(current.toString(16))
+    when(current) {
+        0xFFC4 -> print("\tDefine Huffman Table   ")
+        0xFFC8 -> print("\tReserved JPEG Ext.     ")
+        0xFFCC -> print("\tDefine Arith Code Conds")
+        0xFFDB -> print("\tDefine Quant Table     ")
+        0xFFDC -> print("\tDefine Number of Lines ")
+        0xFFDD -> print("\tDefine Restart Interval")
+        0xFFDE -> print("\tDefine Hierarch Prog   ")
+    }
+    print(stream.getPosition().toString(16))
+    print("\n")
+    skipToNextMarker(stream)
+}
+
+fun skipToNextMarker(stream: Stream) {
+    var marker: Boolean = false
+    while (!marker) {
+        marker = stream.readUint(8) == 0xFF
+    }
+    stream.seekTo(stream.getPosition() - 1)
 }
